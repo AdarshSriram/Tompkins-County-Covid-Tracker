@@ -8,6 +8,7 @@ import csv
 from praw.models import MoreComments
 import time
 from datetime import date
+import config
 
 today = date.today()
 
@@ -31,6 +32,7 @@ def stats():
 
     print("pending tests: " + stats[1].text.strip())
 
+    # append Cases stats to a text file
     with open("cases.txt", "a") as f:
         f.write(str({str(today): {
             "current_positive": int(stats[2].text) - int(stats[4].text),
@@ -38,9 +40,10 @@ def stats():
         }
         }) + ",\n")
 
+    # append Cases stats to a csv file
     with open('cases.csv', 'w', newline='') as file:
         writer = csv.writer(file)
-        # writer.writerow(["Date", "Current_Positive_Cases", "Cumulative_Positive_Cases",  "Total_Recoverd", "Pending_Tests"])
+        # column headers: writer.writerow(["Date", "Current_Positive_Cases", "Cumulative_Positive_Cases",  "Total_Recoverd", "Pending_Tests"])
 
         writer.writerow([str(today), int(stats[2].text) - int(stats[4].text),
                          int(stats[2].text), int(stats[4].text), int(stats[1].text.strip())])
@@ -49,23 +52,18 @@ def stats():
 
 
 def login():
-    reddit = praw.Reddit(client_id="Fl_aoSHEnmdt2Q",
-                         client_secret="lNe7fNE9_-4ltl2urRQoIGPsF-0",
-                         password="Chickoo@1607",
+    reddit = praw.Reddit(client_id=config.client_id,
+                         client_secret=config.client_secret,
+                         password=config.password,
                          redirect_uri="http://localhost:8080",
-                         user_agent="tompkins_covid_bot by u/dr_hippie 0.1",
-                         username="dr_hippie")
+                         user_agent="tompkins_covid_stats by u/dr_hippie",
+                         username=config.password)
 
     print(reddit.user.me())
 
     return reddit
 
 
-#print(reddit.auth.url(["identity"], "...", "permanent"))
-
-# reddit = praw.Reddit('bot')
-
-# reddit.login(REDDIT_USERNAME, REDDIT_PASS)
 def run_bot(reddit, posts_replied_to):
 
     subreddit = reddit.subreddit("Cornell")
@@ -90,18 +88,19 @@ def run_bot(reddit, posts_replied_to):
                     posts_replied_to.append(submission.id)
                     break
 
-    for comment in subreddit.comments(limit=1000):
+    for comment in subreddit.comments(limit=100):
         if isinstance(comment, MoreComments):
             continue
-        comment = comment.body.lower()
-        if word in comment and comment.author != reddit.user.me and comment.id not in posts_replied_to:
-            comment.reply("Current Positive Cases in Tompkins County on " +
-                          str(today) + " : " +
-                          str(stats()[0])
-                          )
-            posts_replied_to.append(comment.id)
+        comment_text = comment.body.lower()
+        for word in QUERY:
+            if word in comment_text and comment.author != reddit.user.me and comment.id not in posts_replied_to:
+                comment.reply("Current Positive Cases in Tompkins County on " +
+                              str(today) + " : " +
+                              str(stats()[0])
+                              )
+                posts_replied_to.append(comment.id)
 
-            break
+                break
 
     with open("posts_replied_to.txt", "w") as f:
         for post_id in posts_replied_to:
@@ -129,6 +128,8 @@ def get_saved_items():
             posts_replied_to = f.read()
             posts_replied_to = posts_replied_to.split("\n")
             posts_replied_to = list(filter(None, posts_replied_to))
+
+    return posts_replied_to
 
 
 reddit = login()
