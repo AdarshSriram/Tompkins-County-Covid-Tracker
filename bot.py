@@ -13,7 +13,7 @@ import config
 today = date.today()
 
 QUERY = ["covid", "covid-19", "positive cases",
-         "social distancing", "corona", "coronavirus"]
+         "social distancing", "corona", "coronavirus", "outbreak"]
 
 
 def stats():
@@ -48,7 +48,7 @@ def stats():
         writer.writerow([str(today), int(stats[2].text) - int(stats[4].text),
                          int(stats[2].text), int(stats[4].text), int(stats[1].text.strip())])
 
-    return [current, pending_tests]
+    return current, pending_tests
 
 
 def login():
@@ -57,7 +57,7 @@ def login():
                          password=config.password,
                          redirect_uri="http://localhost:8080",
                          user_agent="tompkins_covid_stats by u/dr_hippie",
-                         username=config.password)
+                         username=config.username)
 
     print(reddit.user.me())
 
@@ -67,9 +67,26 @@ def login():
 def run_bot(reddit, posts_replied_to):
 
     subreddit = reddit.subreddit("Cornell")
+    cases, pending = stats()
+
+    for comment in subreddit.comments(limit=200):
+        if isinstance(comment, MoreComments):
+            continue
+        comment_text = comment.body.lower()
+        for word in QUERY:
+            if word in comment_text and comment.author != reddit.user.me() and comment.id not in posts_replied_to:
+                comment.reply("Current Positive Cases in Tompkins County on " +
+                              str(today) + " : " +
+                              str(cases) + "\n\n Tests Pending : " + str(pending) +
+                              "\n\nFor more details visit https://tompkinscountyny.gov/health"
+                              )
+                print("Bot replying to : ", comment.body)
+                posts_replied_to.append(comment.id)
+
+                break
 
     for submission in subreddit.stream.submissions():
-        if len(submission.title.split()) > 15:
+        if len(submission.title.split()) > 100:
             break
 
         normalized_title = submission.title.lower()
@@ -80,41 +97,21 @@ def run_bot(reddit, posts_replied_to):
                     submission.reply(
                         "Current Positive Cases in Tompkins County on " +
                         str(today) + " : " +
-                        str(stats()[0])
+                        str(cases) + "\n\n Tests Pending : " + str(pending) +
+                        "\n\nFor more details visit https://tompkinscountyny.gov/health"
                     )
+
                     print("Bot replying to : ", submission.title)
 
                 # Store the current id into our list
                     posts_replied_to.append(submission.id)
                     break
 
-    for comment in subreddit.comments(limit=100):
-        if isinstance(comment, MoreComments):
-            continue
-        comment_text = comment.body.lower()
-        for word in QUERY:
-            if word in comment_text and comment.author != reddit.user.me and comment.id not in posts_replied_to:
-                comment.reply("Current Positive Cases in Tompkins County on " +
-                              str(today) + " : " +
-                              str(stats()[0])
-                              )
-                posts_replied_to.append(comment.id)
-
-                break
-
     with open("posts_replied_to.txt", "w") as f:
         for post_id in posts_replied_to:
             f.write(post_id + "\n")
 
     time.sleep(10)
-
-    # for comment in subreddit.stream.comments():
-    #    print(comment.body)
-    #    if re.search("covid", comment.body, re.IGNORECASE):
-    #        reply = "Current Positive Cases in Tompkins County on " +
-    #        str(today) + " : " + str()
-    #        comment.reply(reply)
-    #        print(reply)
 
 
 def get_saved_items():
